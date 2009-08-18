@@ -4,6 +4,7 @@ ENV['NO_RELOAD'] ||= '1'
 
 $LOAD_PATH.unshift "#{File.dirname(__FILE__)}/../lib"
 $LOAD_PATH.unshift "#{File.dirname(__FILE__)}/../../activesupport/lib"
+require 'action_pack'
 require 'action_controller'
 require 'action_controller/new_base' if ENV['NEW']
 require 'action_view'
@@ -35,10 +36,27 @@ class Runner
     super if @output
   end
 
-  def self.run(app, n, label, output = true)
+  if ActionPack::VERSION::MAJOR < 3
+    def self.app_and_env_for(action, n)
+      env = Rack::MockRequest.env_for("/?action=#{action}")
+      env.merge!('n' => n, 'rack.input' => StringIO.new(''), 'rack.errors' => $stdout)
+      app = BasePostController
+      return app, env
+    end
+  else
+    def self.app_and_env_for(action, n)
+      env = Rack::MockRequest.env_for("/")
+      env.merge!('n' => n, 'rack.input' => StringIO.new(''), 'rack.errors' => $stdout)
+      app = BasePostController.action(action)
+      return app, env
+    end
+  end
+
+  def self.run(action, n, output = true)
     @output = output
+    label = action.to_s
     puts label, '=' * label.size if label
-    env = Rack::MockRequest.env_for("/").merge('n' => n, 'rack.input' => StringIO.new(''), 'rack.errors' => $stdout)
+    app, env = app_and_env_for(action, n)
     t = Benchmark.realtime { new(app, output).call(env) }
     puts "%d ms / %d req = %.1f usec/req" % [10**3 * t, n, 10**6 * t / n]
     puts
@@ -115,33 +133,33 @@ ActionController::Base.use_accept_header = false
 
 unless ENV["PROFILE"]
   if ActionPack::VERSION::MAJOR > 2
-    Runner.run(BasePostController.action(:overhead),        1, 'overhead',          false)
+    Runner.run(:overhead, 1, false)
   end
-  Runner.run(BasePostController.action(:index),             1, 'index',             false)
-  Runner.run(BasePostController.action(:show_template),     1, 'template',          false)
-  Runner.run(BasePostController.action(:partial),           1, 'partial',           false)
-  Runner.run(BasePostController.action(:ten_partials),      1, 'ten_partials',      false)
-  Runner.run(BasePostController.action(:collection_of_10),  1, 'collection_of_10',  false)
-  Runner.run(BasePostController.action(:hundred_partials),  1, 'hundred_partials',  false)
-  Runner.run(BasePostController.action(:collection_of_100), 1, 'collection_of_100', false)
+  Runner.run(:index,             1, false)
+  Runner.run(:show_template,     1, false)
+  Runner.run(:partial,           1, false)
+  Runner.run(:ten_partials,      1, false)
+  Runner.run(:collection_of_10,  1, false)
+  Runner.run(:hundred_partials,  1, false)
+  Runner.run(:collection_of_100, 1, false)
 
   (ENV["M"] || 1).to_i.times do
   if ActionPack::VERSION::MAJOR > 2
-    Runner.run(BasePostController.action(:overhead),        N, 'overhead',          true)
+    Runner.run(:overhead, N, true)
   end
-  Runner.run(BasePostController.action(:index),             N, 'index',             true)
-  Runner.run(BasePostController.action(:show_template),     N, 'template',          true)
-  Runner.run(BasePostController.action(:partial),           N, 'partial',           true)
-  Runner.run(BasePostController.action(:ten_partials),      N, 'ten_partials',      true)
-  Runner.run(BasePostController.action(:collection_of_10),  N, 'collection_of_10',  true)
-  Runner.run(BasePostController.action(:hundred_partials),  N, 'hundred_partials',  true)
-  Runner.run(BasePostController.action(:collection_of_100), N, 'collection_of_100', true)
+  Runner.run(:index,             N, true)
+  Runner.run(:show_template,     N, true)
+  Runner.run(:partial,           N, true)
+  Runner.run(:ten_partials,      N, true)
+  Runner.run(:collection_of_10,  N, true)
+  Runner.run(:hundred_partials,  N, true)
+  Runner.run(:collection_of_100, N, true)
   end
 else
-  Runner.run(BasePostController.action(ENV["PROFILE"].to_sym), 1, ENV["PROFILE"], false)
+  Runner.run(ENV["PROFILE"].to_sym, 1, false)
   require "ruby-prof"
   RubyProf.start
-  Runner.run(BasePostController.action(ENV["PROFILE"].to_sym), N, ENV["PROFILE"])
+  Runner.run(ENV["PROFILE"].to_sym, N, true)
   result = RubyProf.stop
   printer = RubyProf::CallStackPrinter.new(result)
   printer.print(File.open("output.html", "w"))
