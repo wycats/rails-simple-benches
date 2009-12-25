@@ -2,11 +2,16 @@
 ENV['RAILS_ENV'] ||= 'production'
 ENV['NO_RELOAD'] ||= '1'
 
+# Needed for Rails 3. For Rails 2.3, it's easy enough to run off system gems
+# since there are fewer dependencies
+$LOAD_PATH.unshift "#{File.dirname(__FILE__)}/../.."
+require 'vendor/gems/environment'
+
 $LOAD_PATH.unshift "#{File.dirname(__FILE__)}/../lib"
 $LOAD_PATH.unshift "#{File.dirname(__FILE__)}/../../activesupport/lib"
+
 require 'action_pack'
 require 'action_controller'
-require 'action_controller/new_base' if ENV['NEW']
 require 'action_view'
 require 'benchmark'
 
@@ -36,6 +41,10 @@ class Runner
     super if @output
   end
 
+  def self.print(*)
+    super if @output
+  end
+
   if ActionPack::VERSION::MAJOR < 3
     def self.app_and_env_for(action, n)
       env = Rack::MockRequest.env_for("/?action=#{action}")
@@ -52,14 +61,28 @@ class Runner
     end
   end
 
+  $ran = []
+
   def self.run(action, n, output = true)
+    print "."
+    STDOUT.flush
     @output = output
     label = action.to_s
-    puts label, '=' * label.size if label
     app, env = app_and_env_for(action, n)
     t = Benchmark.realtime { new(app, output).call(env) }
-    puts "%d ms / %d req = %.1f usec/req" % [10**3 * t, n, 10**6 * t / n]
+    $ran << [label, (t * 1000).to_i.to_s] if output
+  end
+
+  def self.done
     puts
+    header, content = "", ""
+    $ran.each do |k,v|
+      size = [k.size, v.size].max + 1
+      header << format("%#{size}s", k)
+      content << format("%#{size}s", v)
+    end
+    puts header
+    puts content
   end
 end
 
@@ -120,7 +143,7 @@ class BasePostController < ActionController::Base
   def show_template
     render :template => "template"
   end
-  
+
   module Foo
     def omg
       "omg"
@@ -144,6 +167,7 @@ unless ENV["PROFILE"]
   Runner.run(:collection_of_100, 1, false)
 
   (ENV["M"] || 1).to_i.times do
+  $ran = []
   if ActionPack::VERSION::MAJOR > 2
     Runner.run(:overhead, N, true)
   end
@@ -154,6 +178,7 @@ unless ENV["PROFILE"]
   Runner.run(:collection_of_10,  N, true)
   Runner.run(:hundred_partials,  N, true)
   Runner.run(:collection_of_100, N, true)
+  Runner.done
   end
 else
   Runner.run(ENV["PROFILE"].to_sym, 1, false)
