@@ -9,11 +9,23 @@ require 'vendor/gems/environment'
 
 $LOAD_PATH.unshift "#{File.dirname(__FILE__)}/../lib"
 $LOAD_PATH.unshift "#{File.dirname(__FILE__)}/../../activesupport/lib"
+$LOAD_PATH.unshift "#{File.dirname(__FILE__)}/../../activemodel/lib"
 
 require 'action_pack'
 require 'action_controller'
 require 'action_view'
 require 'benchmark'
+
+MyHash = Class.new(Hash)
+
+if ActionPack::VERSION::MAJOR > 2
+  require 'active_model'
+
+  Hash.class_eval do
+    extend ActiveModel::Naming
+    include ActiveModel::Conversion
+  end
+end
 
 class Runner
   def initialize(app, output)
@@ -86,9 +98,6 @@ class Runner
   end
 end
 
-
-N = (ENV['N'] || 1000).to_i
-
 module ActionController::Rails2Compatibility
   instance_methods.each do |name|
     remove_method name
@@ -114,33 +123,47 @@ class BasePostController < ActionController::Base
     render :partial => "/collection", :object => $OBJECT
   end
 
-  def ten_partials
+  def partial_10
     render :partial => "/ten_partials"
   end
 
-  def hundred_partials
+  def partial_100
     render :partial => "/hundred_partials"
   end
 
   $COLLECTION1 = []
   10.times do |i|
-    $COLLECTION1[i] = {:name => "Hello my name is omg", :address => "333 omg"}
+    $COLLECTION1 << { :name => "Hello my name is omg", :address => "333 omg" }
   end
 
-  def collection_of_10
+  def coll_10
     render :partial => "/collection", :collection => $COLLECTION1
   end
 
   $COLLECTION2 = []
   100.times do |i|
-    $COLLECTION2[i] = {:name => "Hello my name is omg", :address => "333 omg"}
+    $COLLECTION2 << { :name => "Hello my name is omg", :address => "333 omg" }
   end
 
-  def collection_of_100
+  def coll_100
     render :partial => "/collection", :collection => $COLLECTION2
   end
 
-  def show_template
+  def uniq_100
+    render :partial => $COLLECTION2
+  end
+
+  $COLLECTION3 = []
+  50.times do |i|
+    $COLLECTION3 << {:name => "Hello my name is omg", :address => "333 omg"}
+    $COLLECTION3 << MyHash.new(:name => "Hello my name is omg", :address => "333 omg")
+  end
+
+  def diff_100
+    render :partial => $COLLECTION3
+  end
+
+  def template_1
     render :template => "template"
   end
 
@@ -152,33 +175,31 @@ class BasePostController < ActionController::Base
   helper Foo
 end
 
+N = (ENV['N'] || 1000).to_i
 ActionController::Base.use_accept_header = false
 
-unless ENV["PROFILE"]
+def run_all!(times, verbose)
   if ActionPack::VERSION::MAJOR > 2
-    Runner.run(:overhead, 1, false)
+    Runner.run(:overhead, times, verbose)
   end
-  Runner.run(:index,             1, false)
-  Runner.run(:show_template,     1, false)
-  Runner.run(:partial,           1, false)
-  Runner.run(:ten_partials,      1, false)
-  Runner.run(:collection_of_10,  1, false)
-  Runner.run(:hundred_partials,  1, false)
-  Runner.run(:collection_of_100, 1, false)
+  Runner.run(:index,       times, verbose)
+  Runner.run(:template_1,  times, verbose)
+  Runner.run(:partial,     times, verbose)
+  Runner.run(:partial_10,  times, verbose)
+  Runner.run(:coll_10,     times, verbose)
+  Runner.run(:partial_100, times, verbose)
+  Runner.run(:coll_100,    times, verbose)
+  Runner.run(:uniq_100,    times, verbose)
+  Runner.run(:diff_100,    times, verbose)
+end
+
+unless ENV["PROFILE"]
+  run_all!(1, false)
 
   (ENV["M"] || 1).to_i.times do
-  $ran = []
-  if ActionPack::VERSION::MAJOR > 2
-    Runner.run(:overhead, N, true)
-  end
-  Runner.run(:index,             N, true)
-  Runner.run(:show_template,     N, true)
-  Runner.run(:partial,           N, true)
-  Runner.run(:ten_partials,      N, true)
-  Runner.run(:collection_of_10,  N, true)
-  Runner.run(:hundred_partials,  N, true)
-  Runner.run(:collection_of_100, N, true)
-  Runner.done
+    $ran = []
+    run_all!(N, true)
+    Runner.done
   end
 else
   Runner.run(ENV["PROFILE"].to_sym, 1, false)
