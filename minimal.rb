@@ -1,15 +1,11 @@
-# Pass NEW=1 to run with the new Base
 ENV['RAILS_ENV'] ||= 'production'
 ENV['NO_RELOAD'] ||= '1'
 
-# Needed for Rails 3. For Rails 2.3, it's easy enough to run off system gems
-# since there are fewer dependencies
-$LOAD_PATH.unshift "#{File.dirname(__FILE__)}/../.."
-require 'vendor/gems/environment'
+require 'rubygems'
+require 'ruby-prof'
 
-$LOAD_PATH.unshift "#{File.dirname(__FILE__)}/../lib"
-$LOAD_PATH.unshift "#{File.dirname(__FILE__)}/../../activesupport/lib"
-$LOAD_PATH.unshift "#{File.dirname(__FILE__)}/../../activemodel/lib"
+$LOAD_PATH.unshift "#{File.dirname(__FILE__)}/../.."
+require File.expand_path("../../../load_paths", __FILE__)
 
 require 'action_pack'
 require 'action_controller'
@@ -68,7 +64,7 @@ class Runner
     def self.app_and_env_for(action, n)
       env = Rack::MockRequest.env_for("/")
       env.merge!('n' => n, 'rack.input' => StringIO.new(''), 'rack.errors' => $stdout)
-      app = BasePostController.action(action)
+      app = lambda { |env| BasePostController.action(action).call(env) }
       return app, env
     end
   end
