@@ -172,7 +172,7 @@ class BasePostController < ActionController::Base
 end
 
 N = (ENV['N'] || 1000).to_i
-ActionController::Base.use_accept_header = false
+# ActionController::Base.use_accept_header = false
 
 def run_all!(times, verbose)
   if ActionPack::VERSION::MAJOR > 2
