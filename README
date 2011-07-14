@@ -1,0 +1,6 @@
+cd rails
+cd actionpack
+git clone git@github.com:wycats/rails-simple-benches.git
+cd rails-simple-benches
+ruby minimal.rb
+ruby very_simple.rb
